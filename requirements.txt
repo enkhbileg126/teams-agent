@@ -6,3 +6,12 @@ sqlalchemy
 cx_Oracle
 loguru
 pandas
+teams-ai
+poetry
+dotenv
+uvicorn
+fastapi
+botbuilder-core
+langchain[google-genai]
+langgraph
+langchain

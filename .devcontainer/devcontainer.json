@@ -1,7 +1,7 @@
 // For format details, see https://aka.ms/devcontainer.json. For config options, see the README at:
 // https://github.com/devcontainers/images/tree/main/src/miniconda
 {
-	"name": "Miniconda CPU",
+	"name": "teams-agent",
 	// Set CPU & memory limit to prevent the server from going down.
 	"runArgs": [
 		"--cpus=16",
@@ -13,13 +13,12 @@
 	},
 	"features": {
 		"ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
-    },
+	},
 	// Mount /data if you need to save and load big training data. Create a project-specific directory in /data.
 	"mounts": [
 		"source=/data,target=/data,type=bind",
 		"source=/var/run/docker.sock,target=/var/run/docker-host.sock,type=bind"
 	],
-
 	// Configure tool-specific properties.
 	"customizations": {
 		// Configure properties specific to VS Code.
@@ -48,7 +47,6 @@
 				"jupyter.jupyterServerType": "local",
 				"jupyter.notebookFileRoot": "workspaceFolder"
 			},
-
 			// Add the IDs of extensions you want installed when the container is created.
 			"extensions": [
 				"ms-python.python",
@@ -68,14 +66,11 @@
 			]
 		}
 	},
-
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	// "forwardPorts": [],
-
 	// Use 'postCreateCommand' to run commands after the container is created.
 	"postCreateCommand": "umask 0002 && conda env update -n base -f environment.yml",
 	// "postCreateCommand": "pip3 --disable-pip-version-check --no-cache-dir install -r requirements.txt",
-
 	// Comment out connect as root instead. More info: https://aka.ms/vscode-remote/containers/non-root.
 	"remoteUser": "vscode"
 }
