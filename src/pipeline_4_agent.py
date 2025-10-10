@@ -23,7 +23,7 @@ class SequentialAgentPipeline:
             raise ValueError("Taxonomy CSV is empty or failed to load.")
         self.final_result = {}
 
-    @observe
+    @observe(name="Sequential")
     async def run(self, ticket: str):
         self.final_result = {"ticket": ticket}
 

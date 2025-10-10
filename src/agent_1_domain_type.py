@@ -5,8 +5,11 @@ import dotenv
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langfuse import get_client, observe
+from langfuse.langchain import CallbackHandler
 from langgraph.graph import END, StateGraph
 
+langfuse = get_client()
 # Load environment variables from .env file
 dotenv.load_dotenv()
 

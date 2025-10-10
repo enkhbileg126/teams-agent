@@ -11,32 +11,43 @@ from langchain_community.vectorstores import FAISS
 from langchain_core.output_parsers import JsonOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
+from langchain_openai import ChatOpenAI
 from langfuse import Langfuse, get_client, observe
+from langfuse.langchain import CallbackHandler
 
 # Pydantic v2
 from pydantic import BaseModel, Field, ValidationError
+
+from src.settings import rag_agent_llm
 
 # ======================== CONFIG ========================
 load_dotenv()
 if "GOOGLE_API_KEY" not in os.environ:
     raise ValueError("GOOGLE_API_KEY not found in .env file.")
-langfuse = Langfuse(
-    public_key=os.getenv('LANGFUSE_PUBLIC_KEY'),
-    secret_key=os.getenv('LANGFUSE_SECRET_KEY'),
-    host=os.getenv('LANGFUSE_HOST'),
-)
+if "OPENAI_API_KEY" not in os.environ:
+    raise ValueError("GPT key not found in .env file.")
 langfuse = get_client()
-EMBED_MODEL_NAME = "gemini-embedding-001"
-LLM_MODEL_NAME = "gemini-2.0-flash"
+# choose llm
+llm = rag_agent_llm
+# llm=gemini_llm
 
+
+@observe(name="RAG classifier")  # top-level trace
+async def run_smartclassifier(ticket_to_process: str):
+    # Constructing here ensures __init__ runs *inside* this trace
+    classifier = SmartClassifier(csv_path="data/cleaned.csv")
+    return await classifier.classify(ticket_to_process)
+
+
+EMBED_MODEL_NAME = "models/embedding-001"
 # Per-level thresholds (tune with eval data)
 TAU_L2 = 0.80  # Cat1
 TAU_L3 = 0.80  # Cat2
 TAU_L4 = 0.70  # Cat3
 
 # Candidate caps (balance diversity & context size)
-TOP_K_RAW = 100
-TOP_K_TOTAL = 50
+TOP_K_RAW = 800
+TOP_K_TOTAL = 6
 MAX_PER_L3 = 5  # max items per Cat2 parent
 MAX_PER_L2 = 5  # max items per Cat1 parent
 
@@ -102,7 +113,8 @@ def blurb_from_names(domain: str, c1: str, c2: str, c3: str) -> str:
 
 
 # ============== SmartClassifier (Domain → Cat1 → Cat2 → Cat3) ==============
-@observe
+
+
 class SmartClassifier:
     """
     - CSV: Mongolian labels in columns Domain, Cat1, [Cat2], [Cat3], [description]
@@ -113,7 +125,6 @@ class SmartClassifier:
 
     REQUIRED_MIN_COLS = ["Domain", "Cat1"]
 
-    @observe
     def __init__(self, csv_path: str, index_path: str = "taxonomy.index"):
         print("Initializing Smart Classifier (Domain→Cat1→Cat2→Cat3)...")
         self.taxonomy_df = self._load_and_normalize_taxonomy(csv_path)
@@ -131,13 +142,8 @@ class SmartClassifier:
             print(f"No index found. Building new FAISS index at {index_path}...")
             self.faiss_index = self._build_and_save_index(index_path)
 
-        # LLM (with fallback)
-        try:
-            self.llm = ChatGoogleGenerativeAI(model=LLM_MODEL_NAME, temperature=0.0)
-        except Exception:
-            self.llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0.0)
+        self.llm = llm
 
-        # Parser & MN prompt (selected_index required and rationale must echo chosen path)
         self.parser = JsonOutputParser(pydantic_object=ClassificationOutput)
         self.prompt = ChatPromptTemplate.from_template(
             """
@@ -266,14 +272,17 @@ class SmartClassifier:
                 }
             )
         idx = FAISS.from_texts(
-            texts=texts, embedding=self.embedding_model, metadatas=metadatas
+            texts=texts,
+            embedding=self.embedding_model,
+            metadatas=metadatas,
+            callbacks=[CallbackHandler()],
         )
         idx.save_local(index_path)
         print(f"Index built and saved to {index_path}.")
         return idx
 
     # ---------------- Candidate generation ----------------
-    @observe
+    @observe(as_type="tool")
     def _diversify_and_cap(self, docs) -> list[dict[str, Any]]:
         seen = set()
         per_l3: dict[str, int] = {}
@@ -318,17 +327,19 @@ class SmartClassifier:
         return out
 
     @observe
-    def _format_candidates_for_prompt(self, cands: list[dict[str, Any]]) -> str:
+    def _format_candidates_for_prompt(self, cands):
         lines = []
         for i, c in enumerate(cands[:TOP_K_TOTAL], 1):
-            blurb = c["blurb"]
-            if len(blurb) > 220:
-                blurb = blurb[:217] + "..."
-            lines.append(
-                f'{i}) {c["path"]}  '
-                f'[IDs: {c["L1_id"]} > {c["L2_id"]} > {c["L3_id"]} > {c["L4_id"]}]  '
-                f'Тайлбар: {blurb}'
-            )
+            if i <= 5:
+                blurb = (
+                    (c.get("blurb", "")[:117] + "...")
+                    if len(c.get("blurb", "")) > 120
+                    else c.get("blurb", "")
+                )
+                line = f'{i}) {c["path"]} [IDs: {c["L1_id"]}>{c["L2_id"]}>{c["L3_id"]}>{c["L4_id"]}] Тайлбар: {blurb}'
+            else:
+                line = f'{i}) {c["path"]} [IDs: {c["L1_id"]}>{c["L2_id"]}>{c["L3_id"]}>{c["L4_id"]}]'
+            lines.append(line)
         return "\n".join(lines)
 
     @observe
@@ -342,16 +353,30 @@ class SmartClassifier:
         return cands
 
     # ---------------- LLM rerank ----------------
-    @observe
+    @observe  # <-- changed from @observe(as_type="generation")
     async def _rank_candidates(
         self, ticket: str, candidate_paths: list[dict[str, Any]]
     ) -> dict[str, Any]:
-        chain = self.prompt | self.llm | self.parser
+        handler = CallbackHandler()
+
         formatted_candidates = self._format_candidates_for_prompt(candidate_paths)
         ticket_red = redact(ticket)
-        return await chain.ainvoke(
-            {"ticket": ticket_red, "candidate_paths": formatted_candidates}
+
+        # 1) build messages
+        messages = self.prompt.format_messages(
+            ticket=ticket_red,
+            candidate_paths=formatted_candidates,
         )
+
+        # 2) call model directly so we can inspect AIMessage metadata if needed
+        ai_msg = await self.llm.ainvoke(messages, config={"callbacks": [handler]})
+
+        # Optional: if you ever want tokens in logs:
+        # usage = ai_msg.response_metadata.get("usage_metadata")  # sometimes present for Gemini
+        # print("LLM usage:", usage)
+
+        # 3) parse the content with your Pydantic-bound JsonOutputParser
+        return self.parser.parse(ai_msg.content)
 
     # ---------------- Early stop & abstain (logic) ----------------
     @staticmethod

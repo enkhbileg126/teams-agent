@@ -15,3 +15,6 @@ botbuilder-core
 langchain[google-genai]
 langgraph
 langchain
+langfuse
+faiss-cpu
+langchain_community

@@ -1,8 +1,15 @@
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langfuse import get_client, observe
+from langfuse.langchain import CallbackHandler
+
+from src.settings import sequential_agent_llm
+
+langfuse = get_client()
 
 
+@observe
 async def run_agent_3_cat2(
     ticket: str, domain: str, cat1: str, cat2_options: list[str]
 ) -> str:
@@ -20,7 +27,9 @@ async def run_agent_3_cat2(
         Respond with ONLY the name of the single most appropriate category from the list.
         """
     )
-    llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash", temperature=0)
+    llm = sequential_agent_llm
+    handler = CallbackHandler()
+
     chain = prompt | llm | StrOutputParser()
 
     result = await chain.ainvoke(
@@ -29,6 +38,7 @@ async def run_agent_3_cat2(
             "domain": domain,
             "cat1": cat1,
             "cat2_options": "\n- ".join(cat2_options),
-        }
+        },
+        config={"callbacks": [handler]},
     )
     return result.strip()
