@@ -77,7 +77,7 @@ def clean_conversation_multiline(raw_text: str) -> str:
                 if speaker == customer_name:
                     speaker_label = f"'{speaker}'"
                 else:
-                    speaker_label = "'customer service'"
+                    speaker_label = f"'{speaker}'"
 
                 formatted_conversation.append(f"{speaker_label}: \"{full_message}\"")
 
@@ -92,28 +92,45 @@ def clean_conversation_multiline(raw_text: str) -> str:
 
 # The new raw conversation text you provided
 new_raw_conversation = """
-Б. Цэрэн Надмид
+Zooey Ulziibayar
 •
-2025-10-02 17:06
-Get started
-Ger Internet
-•
-2025-10-02 17:06
-Сайн байна уу? Гэр интернэтийн 24/7 онлайн туслах U-Bot байна. Та манай үйлчилгээтэй холбоотой бүх төрлийн асуултаа надаас асуугаарай 😊
-
-Б. Цэрэн Надмид
-•
-2025-10-02 17:06
+2025-10-11 19:29
 Ажилтантай холбогдох
 
-Б. Цэрэн Надмид
+Zooey Ulziibayar
 •
-2025-10-02 17:08
-Nuuts kod shinechleh
-batgerel.g
+2025-10-11 19:30
+E-mongolia deer zeeliin medeelel der unitel turees gesen turliin zeel baina, shalgaad ugch boloh u, bi say l medle. Odoo bas unitel dugaargui, gadaadad baidag umaa
+erdenechimeg.mun
 •
-2025-10-02 17:14
-Сайн байна уу? Би Аялгуу байна. 🙋‍♀️  Гэр дугаар болон нэрээ илгээгээрэй.
+2025-10-11 19:30
+Сайн байна уу? Би Чимгээ байна 🙋‍♀️ Овог нэрээ болон рд илгээгээрэй
+
+Zooey Ulziibayar
+•
+2025-10-11 19:30
+Burenzaya Ulziibayar, USh96052509
+erdenechimeg.mun
+•
+2025-10-11 19:31
+УШ юмуу
+
+Zooey Ulziibayar
+•
+2025-10-11 19:31
+УШ96052509
+erdenechimeg.mun
+•
+2025-10-11 19:33
+Түр хүлээгээрэй
+erdenechimeg.mun
+•
+2025-10-11 20:18
+Хүлээцтэй хандсан танд маш их баярлалаа 🤗 407030132 гэрээтэй Юнивишнийн үйлчилгээ харагдаж байна.
+erdenechimeg.mun
+•
+2025-10-11 20:18
+Та Юнивишнийн мэдээллийг дараах холбоосоор чат бот руу хандан ажилтантай холбогдон аваарай 😊🔗
 Seen
 """
 

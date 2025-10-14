@@ -1,0 +1,11 @@
+{
+  "overall_agreement_at_emp_tier": 0.0,
+  "counts_by_emp_tier": {
+    "null": 21
+  },
+  "domain_breakdown": {
+    "IPTV": 0.0,
+    "Mobile": 0.0,
+    "Toki": 0.0
+  }
+}
